@@ -1,7 +1,7 @@
-export type PointersEntityName = 'message' | 'group'
+export type PointersEntityName = 'message' | 'group' | 'option' | 'insideMessage' | 'code' | 'options'
 
 export type LessonVariablesType = {
-  [key: string]: string | number
+  [key: string]: string | string[] | number | boolean
 }
 
 export type CommonObjectType = {

@@ -1,75 +1,34 @@
-import showdown from 'showdown'
-import { getUniqueId } from '~/helpers/id'
-
 import { pointers } from './pointers'
-import { PointersEntityName, LessonVariablesType, CommonObjectType } from './types'
+import { LessonVariablesType, CommonObjectType } from './types'
 
-export const getEntitesArrayFromText = (text: string, entityName: PointersEntityName): string[] => {
-  let sliceStart
-  let sliceEnd
+const mapKeysAndValues = (value: string | number | boolean, cleanKey: string) => {
+  const key = cleanKey?.toLocaleLowerCase()
 
-  // slicing for message and group is different
-  // because message has arguments
-  if (entityName === 'group') {
-    sliceStart = text.indexOf(pointers[entityName].start) + pointers[entityName].start.length
-    sliceEnd = text.indexOf(pointers[entityName].end)
+  switch (key) {
+    case 'authorid':
+      return { key: 'authorId', value: `${value}` }
+    default:
+      return { key: cleanKey, value }
   }
-
-  if (entityName === 'message') {
-    sliceStart = text.indexOf(pointers[entityName].start)
-    sliceEnd = text.indexOf(pointers[entityName].end) + pointers[entityName].end.length
-  }
-
-  const entity = text.slice(sliceStart, sliceEnd)
-
-  if (!entity) {
-    return []
-  }
-  const restText = text.slice(text.indexOf(pointers[entityName].end) + pointers[entityName].end.length)
-
-  return [entity, ...getEntitesArrayFromText(restText, entityName)]
 }
 
-export const getLessonVariables = (text: string) => {
-  const keyAndValueStringsArr = text
-    .slice(
-      text.indexOf(pointers.variables.start) + pointers.variables.start.length,
-      text.indexOf(pointers.variables.end),
-    )
-    .split(pointers.variables.divider)
+const getValue = (value: string): string | number | boolean => {
+  if (['true', 'false'].includes(value?.toLowerCase())) {
+    return value?.toLowerCase() === 'true'
+  }
 
-  const variables: LessonVariablesType = {}
+  const isNumber = isNaN(+value) ? false : true
 
-  keyAndValueStringsArr.forEach(item => {
-    const [key, value] = item.split(pointers.variables.equalSign)
+  if (isNumber) {
+    return +value
+  }
 
-    const cleanKey = key.trim()
-
-    variables[cleanKey] = value
-  })
-
-  return variables
+  return value
 }
 
-const createMessagePropsObject = (base: string[], lessonVariables: LessonVariablesType) => {
-  const props: LessonVariablesType = {}
+const replaceVariables = (text: string, variables?: LessonVariablesType) => {
+  if (!variables || Object.keys(variables).length === 0) return text
 
-  base.forEach(prop => {
-    // if there is a variable in props, we replace it
-    const preparedProp = replaceVariables(prop, lessonVariables)
-    const [key, value] = preparedProp.split(pointers.variables.equalSign)
-
-    const cleanKey = key.trim()
-
-    props[cleanKey] = value
-  })
-
-  props.id = getUniqueId()
-
-  return props
-}
-
-const replaceVariables = (text: string, variables: LessonVariablesType) => {
   let workingArea = text
 
   let replacementMap: LessonVariablesType = {}
@@ -86,15 +45,15 @@ const replaceVariables = (text: string, variables: LessonVariablesType) => {
   return workingArea
 }
 
-function replaceAllSubstrings(str: string, mapObj: CommonObjectType) {
+const replaceAllSubstrings = (str: string, mapObj: CommonObjectType) => {
   var re = new RegExp(Object.keys(mapObj).join('|'), 'gi')
 
   return str.replace(re, function (matched) {
-    return mapObj[matched.toLowerCase()]
+    return mapObj[matched]
   })
 }
 
-export function cleanEmptyProps(obj: CommonObjectType) {
+const cleanEmptyProps = (obj: CommonObjectType) => {
   for (const prop in obj) {
     if (obj[prop] === null || obj[prop] === undefined) {
       delete obj[prop]
@@ -103,24 +62,4 @@ export function cleanEmptyProps(obj: CommonObjectType) {
   return obj
 }
 
-export const createMessageObjectFromText = (text: string, lessonVariables: LessonVariablesType) => {
-  const baseForMessageProps = text
-    .slice(text.indexOf(pointers.message.start) + pointers.message.start.length, text.indexOf('}-->'))
-    .split(pointers.message.propertiesDivider)
-
-  //TODO: define why there is undefined props in object and remove cleanEmptyProps
-  const propsForMessageObject = createMessagePropsObject(baseForMessageProps, cleanEmptyProps(lessonVariables))
-
-  const rawContent = text.slice(text.indexOf('}-->') + 5, text.indexOf(pointers.message.end))
-
-  // parsing text in html
-  const converter = new showdown.Converter()
-  const html = converter.makeHtml(rawContent)
-
-  const preparedContent = replaceVariables(html, cleanEmptyProps(lessonVariables))
-
-  return cleanEmptyProps({
-    ...propsForMessageObject,
-    content: preparedContent,
-  })
-}
+export { cleanEmptyProps, replaceAllSubstrings, replaceVariables, getValue, mapKeysAndValues }
